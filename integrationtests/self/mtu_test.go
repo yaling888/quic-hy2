@@ -110,14 +110,14 @@ var _ = Describe("DPLPMTUD", func() {
 		}()
 		err = conn.SendDatagram(make([]byte, 2000))
 		Expect(err).To(BeAssignableToTypeOf(&quic.DatagramTooLargeError{}))
-		initialMaxDatagramSize := err.(*quic.DatagramTooLargeError).MaxDatagramPayloadSize
+		initialMaxDatagramSize := err.(*quic.DatagramTooLargeError).MaxDataLen
 		_, err = str.Write(PRDataLong)
 		Expect(err).ToNot(HaveOccurred())
 		str.Close()
 		Eventually(done, 20*time.Second).Should(BeClosed())
 		err = conn.SendDatagram(make([]byte, 2000))
 		Expect(err).To(BeAssignableToTypeOf(&quic.DatagramTooLargeError{}))
-		finalMaxDatagramSize := err.(*quic.DatagramTooLargeError).MaxDatagramPayloadSize
+		finalMaxDatagramSize := err.(*quic.DatagramTooLargeError).MaxDataLen
 
 		mx.Lock()
 		defer mx.Unlock()

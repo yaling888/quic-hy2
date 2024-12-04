@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/quic-go/quic-go/congestion"
 	"github.com/quic-go/quic-go/internal/ackhandler"
 	"github.com/quic-go/quic-go/internal/flowcontrol"
 	"github.com/quic-go/quic-go/internal/handshake"
@@ -869,6 +870,13 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 			}
 			break
 		}
+	}
+
+	// Hysteria connection migration
+	// Set remote address to the address of the last received valid packet
+	if s.perspective == protocol.PerspectiveServer && processed {
+		// Connection migration
+		s.conn.SetRemoteAddr(rp.remoteAddr)
 	}
 
 	p.buffer.MaybeRelease()
@@ -2286,7 +2294,9 @@ func (s *connection) SendDatagram(p []byte) error {
 		protocol.ByteCount(s.maxPayloadSizeEstimate.Load()),
 	)
 	if protocol.ByteCount(len(p)) > maxDataLen {
-		return &DatagramTooLargeError{MaxDatagramPayloadSize: int64(maxDataLen)}
+		return &DatagramTooLargeError{
+			MaxDataLen: int64(maxDataLen),
+		}
 	}
 	f.Data = make([]byte, len(p))
 	copy(f.Data, p)
@@ -2330,4 +2340,8 @@ func (s *connection) NextConnection(ctx context.Context) (Connection, error) {
 // connection ID length), and the size of the encryption tag.
 func estimateMaxPayloadSize(mtu protocol.ByteCount) protocol.ByteCount {
 	return mtu - 1 /* type byte */ - 20 /* maximum connection ID length */ - 16 /* tag size */
+}
+
+func (s *connection) SetCongestionControl(cc congestion.CongestionControl) {
+	s.sentPacketHandler.SetCongestionControl(cc)
 }

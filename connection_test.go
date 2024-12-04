@@ -2506,8 +2506,8 @@ var _ = Describe("Connection", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(BeAssignableToTypeOf(&DatagramTooLargeError{}))
 			derr := err.(*DatagramTooLargeError)
-			Expect(derr.MaxDatagramPayloadSize).To(BeNumerically("<", 1000))
-			Expect(conn.SendDatagram(make([]byte, derr.MaxDatagramPayloadSize))).To(Succeed())
+			Expect(derr.MaxDataLen).To(BeNumerically("<", 1000))
+			Expect(conn.SendDatagram(make([]byte, derr.MaxDataLen))).To(Succeed())
 		})
 
 		It("receives datagrams", func() {
