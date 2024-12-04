@@ -7,7 +7,7 @@ linters-settings:
       quicvarint:
         list-mode: strict
         files:
-          - "**/github.com/quic-go/quic-go/quicvarint/*"
+          - "**/github.com/apernet/quic-go/quicvarint/*"
           - "!$test"
         allow:
           - $gostd
