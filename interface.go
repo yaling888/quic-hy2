@@ -8,9 +8,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/handshake"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/logging"
+	"github.com/apernet/quic-go/congestion"
+	"github.com/apernet/quic-go/internal/handshake"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/logging"
 )
 
 // The StreamID is the ID of a QUIC stream.
@@ -205,6 +206,9 @@ type Connection interface {
 	SendDatagram(payload []byte) error
 	// ReceiveDatagram gets a message received in a datagram, as specified in RFC 9221.
 	ReceiveDatagram(context.Context) ([]byte, error)
+
+	// Replace the current congestion control algorithm with a new one.
+	SetCongestionControl(congestion.CongestionControl)
 }
 
 // An EarlyConnection is a connection that is handshaking.
