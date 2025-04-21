@@ -766,7 +766,6 @@ func (h *sentPacketHandler) OnLossDetectionTimeout(now time.Time) error {
 		h.detectLostPathProbes(now)
 	}
 
-	priorInFlight := h.bytesInFlight
 	earliestLossTime, encLevel := h.getLossTimeAndSpace()
 	if !earliestLossTime.IsZero() {
 		if h.logger.Debug() {
@@ -777,12 +776,6 @@ func (h *sentPacketHandler) OnLossDetectionTimeout(now time.Time) error {
 		}
 		// Early retransmit or time loss detection
 		h.detectLostPackets(now, encLevel)
-
-		if cex, ok := h.congestion.(congestion.SendAlgorithmEx); ok &&
-			len(h.lostPacketsInfo) != 0 {
-			cex.OnCongestionEventEx(priorInFlight, now, nil, h.lostPacketsInfo)
-		}
-
 		return nil
 	}
 
@@ -1028,13 +1021,14 @@ func (h *sentPacketHandler) MigratedPath(now time.Time, initialMaxDatagramSize p
 	for p := range h.appDataPackets.history.PathProbes() {
 		h.appDataPackets.history.RemovePathProbe(p.PacketNumber)
 	}
-	h.congestion = congestion.NewCubicSender(
+	// Hysteria fix: do NOT reset congestion control on connection migration
+	/*h.congestion = congestion.NewCubicSender(
 		congestion.DefaultClock{},
 		h.rttStats,
 		initialMaxDatagramSize,
 		true, // use Reno
 		h.tracer,
-	)
+	)*/
 	h.setLossDetectionTimer(now)
 }
 
