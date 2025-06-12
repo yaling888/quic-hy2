@@ -332,6 +332,8 @@ type Config struct {
 	// Enable QUIC datagram support (RFC 9221).
 	EnableDatagrams bool
 	Tracer          func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+
+	DisablePathManager bool
 }
 
 // ClientHelloInfo contains information about an incoming connection attempt.

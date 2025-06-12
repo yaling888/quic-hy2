@@ -1021,14 +1021,13 @@ func (h *sentPacketHandler) MigratedPath(now time.Time, initialMaxDatagramSize p
 	for p := range h.appDataPackets.history.PathProbes() {
 		h.appDataPackets.history.RemovePathProbe(p.PacketNumber)
 	}
-	// Hysteria fix: do NOT reset congestion control on connection migration
-	/*h.congestion = congestion.NewCubicSender(
+	h.congestion = congestion.NewCubicSender(
 		congestion.DefaultClock{},
 		h.rttStats,
 		initialMaxDatagramSize,
 		true, // use Reno
 		h.tracer,
-	)*/
+	)
 	h.setLossDetectionTimer(now)
 }
 
