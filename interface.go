@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/handshake"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/logging"
+	"github.com/apernet/quic-go/internal/handshake"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/logging"
 )
 
 // The StreamID is the ID of a QUIC stream.
@@ -180,6 +180,8 @@ type Config struct {
 	// Enable QUIC datagram support (RFC 9221).
 	EnableDatagrams bool
 	Tracer          func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+
+	DisablePathManager bool
 }
 
 // ClientHelloInfo contains information about an incoming connection attempt.
