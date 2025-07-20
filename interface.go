@@ -8,9 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/handshake"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/logging"
+	"github.com/apernet/quic-go/internal/handshake"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/logging"
 )
 
 // The StreamID is the ID of a QUIC stream.
@@ -190,6 +190,9 @@ type Config struct {
 	// See https://datatracker.ietf.org/doc/html/draft-ietf-quic-reliable-stream-reset-07.
 	EnableStreamResetPartialDelivery bool
 	Tracer                           func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+
+	MaxDatagramFrameSize int64
+	DisablePathManager   bool
 }
 
 // ClientHelloInfo contains information about an incoming connection attempt.
