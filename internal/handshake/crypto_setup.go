@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qerr"
-	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
-	"github.com/quic-go/quic-go/qlog"
-	"github.com/quic-go/quic-go/qlogwriter"
-	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/internal/qerr"
+	"github.com/apernet/quic-go/internal/utils"
+	"github.com/apernet/quic-go/internal/wire"
+	"github.com/apernet/quic-go/qlog"
+	"github.com/apernet/quic-go/qlogwriter"
+	"github.com/apernet/quic-go/quicvarint"
 )
 
 type quicVersionContextKey struct{}
@@ -387,19 +387,29 @@ func (h *cryptoSetup) GetSessionTicket() ([]byte, error) {
 		// We can't check h.tlsConfig here, since the actual config might have been obtained from
 		// the GetConfigForClient callback.
 		// See https://github.com/golang/go/issues/62032.
-		// Once that issue is resolved, this error assertion can be removed.
+		// This error assertion can be removed once we drop support for Go 1.25.
 		if strings.Contains(err.Error(), "session ticket keys unavailable") {
 			return nil, nil
 		}
 		return nil, err
 	}
-	ev := h.conn.NextEvent()
-	if ev.Kind != tls.QUICWriteData || ev.Level != tls.QUICEncryptionLevelApplication {
-		panic("crypto/tls bug: where's my session ticket?")
-	}
-	ticket := ev.Data
-	if ev := h.conn.NextEvent(); ev.Kind != tls.QUICNoEvent {
-		panic("crypto/tls bug: why more than one ticket?")
+	// If session tickets are disabled, NextEvent will immediately return QUICNoEvent,
+	// and we will return a nil ticket.
+	var ticket []byte
+	for {
+		ev := h.conn.NextEvent()
+		if ev.Kind == tls.QUICNoEvent {
+			break
+		}
+		if ev.Kind == tls.QUICWriteData && ev.Level == tls.QUICEncryptionLevelApplication {
+			if ticket != nil {
+				h.logger.Errorf("unexpected multiple session tickets")
+				continue
+			}
+			ticket = ev.Data
+		} else {
+			h.logger.Errorf("unexpected event: %v", ev.Kind)
+		}
 	}
 	return ticket, nil
 }
