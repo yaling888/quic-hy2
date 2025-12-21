@@ -18,10 +18,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/http3/qlog"
-	"github.com/quic-go/quic-go/qlogwriter"
-	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/apernet/quic-go"
+	"github.com/apernet/quic-go/http3/qlog"
+	"github.com/apernet/quic-go/qlogwriter"
+	"github.com/apernet/quic-go/quicvarint"
 
 	"github.com/quic-go/qpack"
 )
@@ -566,6 +566,7 @@ func (s *Server) handleConn(conn *quic.Conn) error {
 			// or the underlying connection is closed
 			defer wg.Done()
 			s.handleRequest(hconn, str, hconn.decoder, qlogger)
+			hconn.clearStream(str.StreamID())
 		}()
 	}
 	wg.Wait()
