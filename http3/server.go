@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/http3/qlog"
-	"github.com/quic-go/quic-go/qlogwriter"
+	"github.com/apernet/quic-go"
+	"github.com/apernet/quic-go/http3/qlog"
+	"github.com/apernet/quic-go/qlogwriter"
 )
 
 // NextProtoH3 is the ALPN protocol negotiated during the TLS handshake, for QUIC v1 and v2.
@@ -555,6 +555,7 @@ func (s *Server) handleConn(conn *quic.Conn) error {
 			// or the underlying connection is closed.
 			defer wg.Done()
 			hconn.HandleRequestStream(str)
+			hconn.clearStream(str.StreamID())
 		}()
 	}
 	wg.Wait()

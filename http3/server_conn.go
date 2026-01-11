@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/apernet/quic-go"
+	"github.com/apernet/quic-go/qlogwriter"
 	"github.com/quic-go/qpack"
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/qlogwriter"
 )
 
 // RawServerConn is an HTTP/3 server connection.
@@ -258,4 +258,8 @@ func (c *RawServerConn) rejectWithHeaderFieldsTooLarge(str *stateTrackingStream)
 // HandleUnidirectionalStream handles an incoming unidirectional stream.
 func (c *RawServerConn) HandleUnidirectionalStream(str *quic.ReceiveStream) {
 	c.rawConn.handleUnidirectionalStream(str, true)
+}
+
+func (c *RawServerConn) clearStream(id quic.StreamID) {
+	c.rawConn.clearStream(id)
 }
