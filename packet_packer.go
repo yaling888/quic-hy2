@@ -135,7 +135,11 @@ type packetPacker struct {
 	rand                rand.Rand
 
 	numNonAckElicitingAcks int
+
+	peekTimes int
 }
+
+const DatagramFrameMaxPeekTimes = 10
 
 var _ packer = &packetPacker{}
 
@@ -284,6 +288,7 @@ func (p *packetPacker) packConnectionClose(
 			}
 			longHdrPacket, err := p.appendLongHeaderPacket(buffer, hdrs[i], payloads[i], paddingLen, encLevel, sealers[i], v)
 			if err != nil {
+				buffer.Release()
 				return nil, err
 			}
 			packet.longHdrPackets = append(packet.longHdrPackets, longHdrPacket)
@@ -429,6 +434,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxSize protocol.ByteCo
 		padding := p.initialPaddingLen(initialPayload.frames, size, maxSize)
 		cont, err := p.appendLongHeaderPacket(buffer, initialHdr, initialPayload, padding, protocol.EncryptionInitial, initialSealer, v)
 		if err != nil {
+			buffer.Release()
 			return nil, err
 		}
 		packet.longHdrPackets = append(packet.longHdrPackets, cont)
@@ -436,6 +442,7 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxSize protocol.ByteCo
 	if handshakePayload.length > 0 {
 		cont, err := p.appendLongHeaderPacket(buffer, handshakeHdr, handshakePayload, 0, protocol.EncryptionHandshake, handshakeSealer, v)
 		if err != nil {
+			buffer.Release()
 			return nil, err
 		}
 		packet.longHdrPackets = append(packet.longHdrPackets, cont)
@@ -443,12 +450,14 @@ func (p *packetPacker) PackCoalescedPacket(onlyAck bool, maxSize protocol.ByteCo
 	if zeroRTTPayload.length > 0 {
 		longHdrPacket, err := p.appendLongHeaderPacket(buffer, zeroRTTHdr, zeroRTTPayload, 0, protocol.Encryption0RTT, zeroRTTSealer, v)
 		if err != nil {
+			buffer.Release()
 			return nil, err
 		}
 		packet.longHdrPackets = append(packet.longHdrPackets, longHdrPacket)
 	} else if oneRTTPayload.length > 0 {
 		shp, err := p.appendShortHeaderPacket(buffer, connID, oneRTTPacketNumber, oneRTTPacketNumberLen, kp, oneRTTPayload, 0, maxSize, oneRTTSealer, false, v)
 		if err != nil {
+			buffer.Release()
 			return nil, err
 		}
 		packet.shortHdrPacket = &shp
@@ -657,13 +666,23 @@ func (p *packetPacker) composeNextPacket(
 				pl.frames = append(pl.frames, ackhandler.Frame{Frame: f})
 				pl.length += size
 				p.datagramQueue.Pop()
+				p.peekTimes = 0
 			} else if pl.ack == nil {
 				// The DATAGRAM frame doesn't fit, and the packet doesn't contain an ACK.
 				// Discard this frame. There's no point in retrying this in the next packet,
 				// as it's unlikely that the available packet size will increase.
 				p.datagramQueue.Pop()
+				p.peekTimes = 0
 			}
 			// If the DATAGRAM frame was too large and the packet contained an ACK, we'll try to send it out later.
+			p.peekTimes++
+			if p.peekTimes > DatagramFrameMaxPeekTimes {
+				if p.datagramQueue.logger != nil && p.datagramQueue.logger.Debug() {
+					p.datagramQueue.logger.Debugf("Discarded DATAGRAM frame (%d bytes payload)", size)
+				}
+				p.datagramQueue.Pop()
+				p.peekTimes = 0
+			}
 		}
 	}
 
@@ -759,6 +778,7 @@ func (p *packetPacker) PackPTOProbePacket(
 
 	longHdrPacket, err := p.appendLongHeaderPacket(buffer, hdr, pl, padding, encLevel, sealer, v)
 	if err != nil {
+		buffer.Release()
 		return nil, err
 	}
 	packet.longHdrPackets = []*longHeaderPacket{longHdrPacket}
@@ -787,6 +807,7 @@ func (p *packetPacker) packPTOProbePacket1RTT(maxPacketSize protocol.ByteCount, 
 	packet := &coalescedPacket{buffer: buffer}
 	shp, err := p.appendShortHeaderPacket(buffer, connID, pn, pnLen, kp, pl, 0, maxPacketSize, s, false, v)
 	if err != nil {
+		buffer.Release()
 		return nil, err
 	}
 	packet.shortHdrPacket = &shp
@@ -808,6 +829,9 @@ func (p *packetPacker) PackMTUProbePacket(ping ackhandler.Frame, size protocol.B
 	padding := size - p.shortHeaderPacketLength(connID, pnLen, pl) - protocol.ByteCount(s.Overhead())
 	kp := s.KeyPhase()
 	packet, err := p.appendShortHeaderPacket(buffer, connID, pn, pnLen, kp, pl, padding, size, s, true, v)
+	if err != nil {
+		buffer.Release()
+	}
 	return packet, buffer, err
 }
 

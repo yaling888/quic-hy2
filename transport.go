@@ -252,7 +252,7 @@ func (t *Transport) dial(ctx context.Context, addr net.Addr, host string, tlsCon
 	}
 	conf = populateConfig(conf)
 	tlsConf = tlsConf.Clone()
-	setTLSConfigServerName(tlsConf, addr, host)
+	// setTLSConfigServerName(tlsConf, addr, host)
 	return t.doDial(ctx,
 		newSendConn(t.conn, addr, packetInfo{}, utils.DefaultLogger),
 		tlsConf,
@@ -525,9 +525,6 @@ func (t *Transport) close(e error) {
 	}
 }
 
-// only print warnings about the UDP receive buffer size once
-var setBufferWarningOnce sync.Once
-
 func (t *Transport) listen(conn rawConn) {
 	for {
 		p, err := conn.ReadPacket()
@@ -749,14 +746,6 @@ func setTLSConfigServerName(tlsConf *tls.Config, addr net.Addr, host string) {
 		return
 	}
 	tlsConf.ServerName = h
-}
-
-func (t *Transport) SetCreatedConn(createdConn bool) {
-	t.createdConn = createdConn
-}
-
-func (t *Transport) SetSingleUse(isSingleUse bool) {
-	t.isSingleUse = isSingleUse
 }
 
 type packetHandlerMap Transport

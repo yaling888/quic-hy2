@@ -1273,7 +1273,7 @@ func (c *Conn) handleShortHeaderPacket(
 		return true, nil
 	}
 	if c.config.DisablePathManager {
-		// Hysteria port hopping
+		// for hysteria2 port hopping, direct change remote address without connection migration logic
 		c.conn.ChangeRemoteAddr(p.remoteAddr, p.info)
 		return true, nil
 	}

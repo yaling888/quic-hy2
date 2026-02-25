@@ -348,8 +348,7 @@ func (h *sentPacketHandler) qlogMetricsUpdated() {
 			updated = true
 		}
 	}
-	cc := h.getCongestionControl()
-	if cwnd := cc.GetCongestionWindow(); h.lastMetrics.CongestionWindow != int(cwnd) {
+	if cwnd := h.getCongestionControl().GetCongestionWindow(); h.lastMetrics.CongestionWindow != int(cwnd) {
 		metricsUpdatedEvent.CongestionWindow = int(cwnd)
 		h.lastMetrics.CongestionWindow = metricsUpdatedEvent.CongestionWindow
 		updated = true
@@ -444,6 +443,9 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 
 	h.detectLostPackets(rcvTime, encLevel)
 	h.ackedPacketsInfo = h.ackedPacketsInfo[:0]
+	if encLevel == protocol.Encryption1RTT {
+		h.detectLostPathProbes(rcvTime)
+	}
 	var acked1RTTPacket bool
 	for _, p := range ackedPackets {
 		if p.includedInBytesInFlight {
@@ -462,6 +464,11 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 		}
 	}
 
+	if cex, ok := h.getCongestionControl().(congestion.SendAlgorithmEx); ok &&
+		(len(h.ackedPacketsInfo) != 0 || len(h.lostPacketsInfo) != 0) {
+		cex.OnCongestionEventEx(priorInFlight, rcvTime, h.ackedPacketsInfo, h.lostPacketsInfo)
+	}
+
 	// detect spurious losses for application data packets, if the ACK was not reordered
 	if encLevel == protocol.Encryption1RTT && largestAcked == pnSpace.largestAcked {
 		h.detectSpuriousLosses(
@@ -470,11 +477,6 @@ func (h *sentPacketHandler) ReceivedAck(ack *wire.AckFrame, encLevel protocol.En
 		)
 		// clean up lost packet history
 		h.lostPackets.DeleteBefore(rcvTime.Add(-3 * h.rttStats.PTO(false)))
-	}
-
-	if cex, ok := cc.(congestion.SendAlgorithmEx); ok &&
-		(len(h.ackedPacketsInfo) != 0 || len(h.lostPacketsInfo) != 0) {
-		cex.OnCongestionEventEx(priorInFlight, rcvTime, h.ackedPacketsInfo, h.lostPacketsInfo)
 	}
 
 	// After this point, we must not use ackedPackets any longer!
@@ -818,10 +820,9 @@ func (h *sentPacketHandler) detectLostPackets(now monotime.Time, encLevel protoc
 	// Packets sent before this time are deemed lost.
 	lostSendTime := now.Add(-lossDelay)
 
-	priorInFlight := h.bytesInFlight
-
 	cc := h.getCongestionControl()
 
+	priorInFlight := h.bytesInFlight
 	for pn, p := range pnSpace.history.Packets() {
 		if pn > pnSpace.largestAcked {
 			break
@@ -915,12 +916,10 @@ func (h *sentPacketHandler) OnLossDetectionTimeout(now monotime.Time) error {
 		// Early retransmit or time loss detection
 		h.detectLostPackets(now, encLevel)
 
-		cc := h.getCongestionControl()
-		if cex, ok := cc.(congestion.SendAlgorithmEx); ok &&
+		if cex, ok := h.getCongestionControl().(congestion.SendAlgorithmEx); ok &&
 			len(h.lostPacketsInfo) != 0 {
 			cex.OnCongestionEventEx(priorInFlight, now, nil, h.lostPacketsInfo)
 		}
-
 		return nil
 	}
 
@@ -1040,10 +1039,8 @@ func (h *sentPacketHandler) SendMode(now monotime.Time) SendMode {
 	if h.numProbesToSend > 0 {
 		return h.ptoMode
 	}
-
-	cc := h.getCongestionControl()
-
 	// Only send ACKs if we're congestion limited.
+	cc := h.getCongestionControl()
 	if !cc.CanSend(h.bytesInFlight) {
 		if h.logger.Debug() {
 			h.logger.Debugf("Congestion limited: bytes in flight %d, window %d", h.bytesInFlight, cc.GetCongestionWindow())
@@ -1063,13 +1060,11 @@ func (h *sentPacketHandler) SendMode(now monotime.Time) SendMode {
 }
 
 func (h *sentPacketHandler) TimeUntilSend() monotime.Time {
-	cc := h.getCongestionControl()
-	return cc.TimeUntilSend(h.bytesInFlight)
+	return h.getCongestionControl().TimeUntilSend(h.bytesInFlight)
 }
 
 func (h *sentPacketHandler) SetMaxDatagramSize(s protocol.ByteCount) {
-	cc := h.getCongestionControl()
-	cc.SetMaxDatagramSize(s)
+	h.getCongestionControl().SetMaxDatagramSize(s)
 }
 
 func (h *sentPacketHandler) isAmplificationLimited() bool {
@@ -1172,8 +1167,7 @@ func (h *sentPacketHandler) MigratedPath(now monotime.Time, initialMaxDatagramSi
 	for pn := range h.appDataPackets.history.PathProbes() {
 		h.appDataPackets.history.RemovePathProbe(pn)
 	}
-	// Hysteria fix: do NOT reset congestion control on path migration
-	/*cc := congestion.NewCubicSender(
+	h.congestion = congestion.NewCubicSender(
 		congestion.DefaultClock{},
 		h.rttStats,
 		h.connStats,
@@ -1181,7 +1175,7 @@ func (h *sentPacketHandler) MigratedPath(now monotime.Time, initialMaxDatagramSi
 		true, // use Reno
 		h.qlogger,
 	)
-	h.setLossDetectionTimer(now)*/
+	h.setLossDetectionTimer(now)
 }
 
 func (h *sentPacketHandler) getCongestionControl() congestion.SendAlgorithmWithDebugInfos {
