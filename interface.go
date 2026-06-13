@@ -8,9 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/handshake"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/qlogwriter"
+	"github.com/apernet/quic-go/internal/handshake"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/qlogwriter"
 )
 
 // The StreamID is the ID of a QUIC stream.
@@ -172,11 +172,23 @@ type Config struct {
 	Allow0RTT bool
 	// Enable QUIC datagram support (RFC 9221).
 	EnableDatagrams bool
+	// OmitMaxDatagramFrameSize omits the max_datagram_frame_size transport parameter,
+	// even when QUIC datagram support is enabled.
+	OmitMaxDatagramFrameSize bool
+	// AssumePeerMaxDatagramFrameSize treats peers that omit max_datagram_frame_size
+	// as supporting DATAGRAM frames up to this size. This is a non-standard extension.
+	AssumePeerMaxDatagramFrameSize int64
 	// Enable QUIC Stream Resets with Partial Delivery.
 	// See https://datatracker.ietf.org/doc/html/draft-ietf-quic-reliable-stream-reset-07.
 	EnableStreamResetPartialDelivery bool
 
 	Tracer func(ctx context.Context, isClient bool, connID ConnectionID) qlogwriter.Trace
+
+	MaxDatagramFrameSize int64
+
+	// DisablePathManager disables path manager.
+	// for hysteria2 port hopping, direct change remote address without connection migration logic
+	DisablePathManager bool
 }
 
 // ClientInfo contains information about an incoming connection attempt.
