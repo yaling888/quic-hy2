@@ -1,9 +1,10 @@
 package ackhandler
 
 import (
-	"github.com/quic-go/quic-go/internal/monotime"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/apernet/quic-go/congestion"
+	"github.com/apernet/quic-go/internal/monotime"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/internal/wire"
 )
 
 // SentPacketHandler handles ACKs received for outgoing packets
@@ -24,6 +25,9 @@ type SentPacketHandler interface {
 	// It is used for pacing packets.
 	TimeUntilSend() monotime.Time
 	SetMaxDatagramSize(count protocol.ByteCount)
+	// SetLastDatagramPadding reports how much room was left in the datagram that
+	// was just packed. It only matters when packet numbers are shortened.
+	SetLastDatagramPadding(protocol.ByteCount)
 
 	// only to be called once the handshake is complete
 	QueueProbePacket(protocol.EncryptionLevel) bool /* was a packet queued */
@@ -36,4 +40,6 @@ type SentPacketHandler interface {
 	OnLossDetectionTimeout(now monotime.Time) error
 
 	MigratedPath(now monotime.Time, initialMaxPacketSize protocol.ByteCount)
+
+	SetCongestionControl(congestion.CongestionControl)
 }

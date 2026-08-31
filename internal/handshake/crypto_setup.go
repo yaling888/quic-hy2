@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qerr"
-	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
-	"github.com/quic-go/quic-go/qlog"
-	"github.com/quic-go/quic-go/qlogwriter"
-	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/apernet/quic-go/internal/protocol"
+	"github.com/apernet/quic-go/internal/qerr"
+	"github.com/apernet/quic-go/internal/utils"
+	"github.com/apernet/quic-go/internal/wire"
+	"github.com/apernet/quic-go/qlog"
+	"github.com/apernet/quic-go/qlogwriter"
+	"github.com/apernet/quic-go/quicvarint"
 )
 
 type quicVersionContextKey struct{}
@@ -27,7 +27,7 @@ const clientSessionStateRevision = 5
 
 type cryptoSetup struct {
 	tlsConf *tls.Config
-	conn    *tls.QUICConn
+	conn    tlsQUICConn
 
 	events []Event
 
@@ -67,16 +67,20 @@ type cryptoSetup struct {
 var _ CryptoSetup = &cryptoSetup{}
 
 // NewCryptoSetupClient creates a new crypto setup for the client
+// chromeParrot makes the client emit Chrome's TLS ClientHello via uTLS instead of
+// crypto/tls. It forces enable0RTT off: see newUTLSQUICClient for why resumption
+// can't be carried across the two TLS stacks.
 func NewCryptoSetupClient(
 	connID protocol.ConnectionID,
 	tp *wire.TransportParameters,
 	tlsConf *tls.Config,
 	enable0RTT bool,
+	chromeParrot bool,
 	rttStats *utils.RTTStats,
 	qlogger qlogwriter.Recorder,
 	logger utils.Logger,
 	version protocol.Version,
-) CryptoSetup {
+) (CryptoSetup, error) {
 	cs := newCryptoSetup(
 		connID,
 		tp,
@@ -89,15 +93,23 @@ func NewCryptoSetupClient(
 
 	tlsConf = setupConfigForClient(tlsConf)
 	cs.tlsConf = tlsConf
-	cs.allow0RTT = enable0RTT
+	cs.allow0RTT = enable0RTT && !chromeParrot
 
-	cs.conn = tls.QUICClient(&tls.QUICConfig{
-		TLSConfig:           tlsConf,
-		EnableSessionEvents: true,
-	})
+	if chromeParrot {
+		conn, err := newUTLSQUICClient(tlsConf)
+		if err != nil {
+			return nil, err
+		}
+		cs.conn = conn
+	} else {
+		cs.conn = tls.QUICClient(&tls.QUICConfig{
+			TLSConfig:           tlsConf,
+			EnableSessionEvents: true,
+		})
+	}
 	cs.conn.SetTransportParameters(cs.ourParams.Marshal(protocol.PerspectiveClient))
 
-	return cs
+	return cs, nil
 }
 
 // NewCryptoSetupServer creates a new crypto setup for the server
